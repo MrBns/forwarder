@@ -3,6 +3,16 @@ package config
 import (
 	"os"
 	"strings"
+
+	"github.com/google/wire"
+)
+
+// ProviderSet is the Wire provider set for the config package.
+var ProviderSet = wire.NewSet(
+	Load,
+	ProvideTelegramConfig,
+	ProvideDiscordConfig,
+	ProvideServerConfig,
 )
 
 // Config holds all application configuration loaded from environment variables.
@@ -24,6 +34,38 @@ type Config struct {
 	// DiscordWebhookURL is the full Discord webhook URL.
 	// Leave empty to disable Discord notifications.
 	DiscordWebhookURL string
+}
+
+// TelegramConfig holds the Telegram-specific configuration slice.
+type TelegramConfig struct {
+	BotToken string
+	ChatID   string
+}
+
+// DiscordConfig holds the Discord-specific configuration slice.
+type DiscordConfig struct {
+	WebhookURL string
+}
+
+// ServerConfig holds HTTP server configuration.
+type ServerConfig struct {
+	Port           string
+	AllowedOrigins []string
+}
+
+// ProvideTelegramConfig extracts TelegramConfig from Config.
+func ProvideTelegramConfig(cfg *Config) TelegramConfig {
+	return TelegramConfig{BotToken: cfg.TelegramBotToken, ChatID: cfg.TelegramChatID}
+}
+
+// ProvideDiscordConfig extracts DiscordConfig from Config.
+func ProvideDiscordConfig(cfg *Config) DiscordConfig {
+	return DiscordConfig{WebhookURL: cfg.DiscordWebhookURL}
+}
+
+// ProvideServerConfig extracts ServerConfig from Config.
+func ProvideServerConfig(cfg *Config) ServerConfig {
+	return ServerConfig{Port: cfg.Port, AllowedOrigins: cfg.AllowedOrigins}
 }
 
 // Load reads configuration from environment variables.

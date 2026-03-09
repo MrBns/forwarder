@@ -6,24 +6,22 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/google/wire"
+
 	"github.com/MrBns/form-response/internal/notifier"
 )
 
+// ProviderSet is the Wire provider set for the handler package.
+var ProviderSet = wire.NewSet(NewFormHandler)
+
 // FormHandler handles POST /api/submit requests.
 type FormHandler struct {
-	notifiers []notifier.Notifier
+	notifiers notifier.Notifiers
 }
 
-// NewFormHandler creates a FormHandler with the supplied notifiers.
-// Nil notifiers are silently ignored so callers can pass optional ones directly.
-func NewFormHandler(notifiers ...notifier.Notifier) *FormHandler {
-	active := make([]notifier.Notifier, 0, len(notifiers))
-	for _, n := range notifiers {
-		if n != nil {
-			active = append(active, n)
-		}
-	}
-	return &FormHandler{notifiers: active}
+// NewFormHandler creates a FormHandler with the supplied Notifiers collection.
+func NewFormHandler(notifiers notifier.Notifiers) *FormHandler {
+	return &FormHandler{notifiers: notifiers}
 }
 
 // submitRequest is the JSON body accepted by the submit endpoint.

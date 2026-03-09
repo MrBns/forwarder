@@ -10,6 +10,17 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/google/wire"
+
+	"github.com/MrBns/form-response/internal/config"
+)
+
+// ProviderSet is the Wire provider set for the notifier package.
+var ProviderSet = wire.NewSet(
+	ProvideTelegramNotifier,
+	ProvideDiscordNotifier,
+	ProvideNotifiers,
 )
 
 // Notifier is the common interface implemented by every messaging back-end.
@@ -18,6 +29,35 @@ type Notifier interface {
 	Name() string
 	// Send delivers message text to the configured destination.
 	Send(ctx context.Context, message string) error
+}
+
+// Notifiers is an ordered collection of active Notifier instances.
+// It is a distinct named type so Wire can inject it unambiguously.
+type Notifiers []Notifier
+
+// ProvideNotifiers assembles the active Notifiers slice from the optional concrete
+// implementations. Nil entries (disabled services) are omitted automatically.
+func ProvideNotifiers(tg *TelegramNotifier, dc *DiscordNotifier) Notifiers {
+	var ns Notifiers
+	if tg != nil {
+		ns = append(ns, tg)
+	}
+	if dc != nil {
+		ns = append(ns, dc)
+	}
+	return ns
+}
+
+// ProvideTelegramNotifier creates a TelegramNotifier from config.
+// Returns nil when the token or chat ID is absent (disables Telegram).
+func ProvideTelegramNotifier(cfg config.TelegramConfig) *TelegramNotifier {
+	return NewTelegramNotifier(cfg.BotToken, cfg.ChatID)
+}
+
+// ProvideDiscordNotifier creates a DiscordNotifier from config.
+// Returns nil when the webhook URL is absent (disables Discord).
+func ProvideDiscordNotifier(cfg config.DiscordConfig) *DiscordNotifier {
+	return NewDiscordNotifier(cfg.WebhookURL)
 }
 
 // httpClient is the shared HTTP client used by all notifiers.
