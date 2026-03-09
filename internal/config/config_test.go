@@ -13,6 +13,7 @@ func TestLoad_Defaults(t *testing.T) {
 	os.Unsetenv("TELEGRAM_BOT_TOKEN")
 	os.Unsetenv("TELEGRAM_CHAT_ID")
 	os.Unsetenv("DISCORD_WEBHOOK_URL")
+	os.Unsetenv("DATABASE_URL")
 
 	cfg := config.Load()
 
@@ -31,6 +32,9 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.DiscordWebhookURL != "" {
 		t.Errorf("DiscordWebhookURL = %q, want empty", cfg.DiscordWebhookURL)
 	}
+	if cfg.DatabaseURL != "" {
+		t.Errorf("DatabaseURL = %q, want empty", cfg.DatabaseURL)
+	}
 }
 
 func TestLoad_CustomValues(t *testing.T) {
@@ -39,6 +43,7 @@ func TestLoad_CustomValues(t *testing.T) {
 	t.Setenv("TELEGRAM_BOT_TOKEN", "mytoken")
 	t.Setenv("TELEGRAM_CHAT_ID", "12345")
 	t.Setenv("DISCORD_WEBHOOK_URL", "https://discord.com/api/webhooks/test")
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/db")
 
 	cfg := config.Load()
 
@@ -63,5 +68,8 @@ func TestLoad_CustomValues(t *testing.T) {
 	}
 	if cfg.DiscordWebhookURL != "https://discord.com/api/webhooks/test" {
 		t.Errorf("DiscordWebhookURL = %q", cfg.DiscordWebhookURL)
+	}
+	if cfg.DatabaseURL != "postgres://user:pass@localhost:5432/db" {
+		t.Errorf("DatabaseURL = %q", cfg.DatabaseURL)
 	}
 }

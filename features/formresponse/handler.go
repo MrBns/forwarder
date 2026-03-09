@@ -1,26 +1,20 @@
-package handler
+package formresponse
 
 import (
-	"context"
 	"encoding/json"
 	"log"
 	"net/http"
-
-	"github.com/google/wire"
-
-	"github.com/MrBns/form-response/internal/notifier"
 )
 
-// ProviderSet is the Wire provider set for the handler package.
-var ProviderSet = wire.NewSet(NewFormHandler)
-
-// FormHandler handles POST /api/submit requests.
+// FormHandler is the incoming HTTP adapter for the formresponse feature.
+// It receives form submissions over HTTP and dispatches them to all active
+// Notifier outgoing adapters.
 type FormHandler struct {
-	notifiers notifier.Notifiers
+	notifiers Notifiers
 }
 
-// NewFormHandler creates a FormHandler with the supplied Notifiers collection.
-func NewFormHandler(notifiers notifier.Notifiers) *FormHandler {
+// NewFormHandler creates a FormHandler with the injected Notifiers slice.
+func NewFormHandler(notifiers Notifiers) *FormHandler {
 	return &FormHandler{notifiers: notifiers}
 }
 
@@ -30,17 +24,14 @@ type submitRequest struct {
 	Fields map[string]string `json:"fields"`
 }
 
-// submitResponse is the JSON body returned on success.
+// submitResponse is the JSON body returned on success or failure.
 type submitResponse struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 }
 
-// Submit accepts a form submission and forwards it to all configured notifiers.
-//
-//	POST /api/submit
-//	Content-Type: application/json
-//	{ "fields": { "name": "Alice", "email": "alice@example.com", "message": "Hello!" } }
+// Submit handles POST /api/submit — accepts a form payload and forwards it
+// to every configured notifier.
 func (h *FormHandler) Submit(w http.ResponseWriter, r *http.Request) {
 	var req submitRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -61,15 +52,14 @@ func (h *FormHandler) Submit(w http.ResponseWriter, r *http.Request) {
 
 	origin := r.Header.Get("Origin")
 
-	// Fire-and-forget to all notifiers; collect errors for logging.
-	ctx := context.Background()
+	ctx := r.Context()
 	var failed []string
 	for _, n := range h.notifiers {
 		var msg string
 		if n.Name() == "discord" {
-			msg = notifier.FormatFormDataPlain(origin, req.Fields)
+			msg = FormatMarkdown(origin, req.Fields)
 		} else {
-			msg = notifier.FormatFormData(origin, req.Fields)
+			msg = FormatHTML(origin, req.Fields)
 		}
 		if err := n.Send(ctx, msg); err != nil {
 			log.Printf("notifier %s error: %v", n.Name(), err)
@@ -91,7 +81,7 @@ func (h *FormHandler) Submit(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// HealthCheck handles GET /health.
+// HealthCheck handles GET /health — returns a simple liveness probe.
 func HealthCheck(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

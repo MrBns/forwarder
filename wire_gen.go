@@ -7,25 +7,38 @@
 package main
 
 import (
+	"github.com/MrBns/form-response/features/feedback"
+	"github.com/MrBns/form-response/features/formresponse"
 	"github.com/MrBns/form-response/internal/app"
 	"github.com/MrBns/form-response/internal/config"
-	"github.com/MrBns/form-response/internal/handler"
-	"github.com/MrBns/form-response/internal/notifier"
+	"github.com/MrBns/form-response/internal/db"
 )
 
 // Injectors from wire.go:
 
 // initializeApp is the Wire injector function.
-// Wire reads this function's body and generates the wiring code in wire_gen.go.
+// Wire reads this function's body, resolves the dependency graph from the
+// provider sets, and generates the wiring code in wire_gen.go.
 func initializeApp() (*app.App, error) {
 	configConfig := config.Load()
 	serverConfig := config.ProvideServerConfig(configConfig)
 	telegramConfig := config.ProvideTelegramConfig(configConfig)
-	telegramNotifier := notifier.ProvideTelegramNotifier(telegramConfig)
+	telegramNotifier := formresponse.ProvideTelegramNotifier(telegramConfig)
 	discordConfig := config.ProvideDiscordConfig(configConfig)
-	discordNotifier := notifier.ProvideDiscordNotifier(discordConfig)
-	notifiers := notifier.ProvideNotifiers(telegramNotifier, discordNotifier)
-	formHandler := handler.NewFormHandler(notifiers)
-	appApp := app.New(serverConfig, formHandler, notifiers)
+	discordNotifier := formresponse.ProvideDiscordNotifier(discordConfig)
+	notifiers := formresponse.ProvideNotifiers(telegramNotifier, discordNotifier)
+	formHandler := formresponse.NewFormHandler(notifiers)
+	dbConfig := config.ProvideDBConfig(configConfig)
+	pool, err := db.NewPool(dbConfig)
+	if err != nil {
+		return nil, err
+	}
+	postgresRepository, err := feedback.NewRepository(pool)
+	if err != nil {
+		return nil, err
+	}
+	feedbackService := feedback.NewService(postgresRepository)
+	handler := feedback.NewHandler(feedbackService)
+	appApp := app.New(serverConfig, formHandler, handler)
 	return appApp, nil
 }

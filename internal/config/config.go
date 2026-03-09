@@ -13,6 +13,7 @@ var ProviderSet = wire.NewSet(
 	ProvideTelegramConfig,
 	ProvideDiscordConfig,
 	ProvideServerConfig,
+	ProvideDBConfig,
 )
 
 // Config holds all application configuration loaded from environment variables.
@@ -34,6 +35,10 @@ type Config struct {
 	// DiscordWebhookURL is the full Discord webhook URL.
 	// Leave empty to disable Discord notifications.
 	DiscordWebhookURL string
+
+	// DatabaseURL is the PostgreSQL connection string (DSN).
+	// Required for the feedback feature.
+	DatabaseURL string
 }
 
 // TelegramConfig holds the Telegram-specific configuration slice.
@@ -53,6 +58,11 @@ type ServerConfig struct {
 	AllowedOrigins []string
 }
 
+// DBConfig holds the PostgreSQL connection configuration.
+type DBConfig struct {
+	DSN string
+}
+
 // ProvideTelegramConfig extracts TelegramConfig from Config.
 func ProvideTelegramConfig(cfg *Config) TelegramConfig {
 	return TelegramConfig{BotToken: cfg.TelegramBotToken, ChatID: cfg.TelegramChatID}
@@ -66,6 +76,11 @@ func ProvideDiscordConfig(cfg *Config) DiscordConfig {
 // ProvideServerConfig extracts ServerConfig from Config.
 func ProvideServerConfig(cfg *Config) ServerConfig {
 	return ServerConfig{Port: cfg.Port, AllowedOrigins: cfg.AllowedOrigins}
+}
+
+// ProvideDBConfig extracts DBConfig from Config.
+func ProvideDBConfig(cfg *Config) DBConfig {
+	return DBConfig{DSN: cfg.DatabaseURL}
 }
 
 // Load reads configuration from environment variables.
@@ -92,5 +107,6 @@ func Load() *Config {
 		TelegramBotToken:  os.Getenv("TELEGRAM_BOT_TOKEN"),
 		TelegramChatID:    os.Getenv("TELEGRAM_CHAT_ID"),
 		DiscordWebhookURL: os.Getenv("DISCORD_WEBHOOK_URL"),
+		DatabaseURL:       os.Getenv("DATABASE_URL"),
 	}
 }

@@ -7,20 +7,23 @@ package main
 import (
 	"github.com/google/wire"
 
+	"github.com/MrBns/form-response/features/feedback"
+	"github.com/MrBns/form-response/features/formresponse"
 	"github.com/MrBns/form-response/internal/app"
 	"github.com/MrBns/form-response/internal/config"
-	"github.com/MrBns/form-response/internal/handler"
-	"github.com/MrBns/form-response/internal/notifier"
+	"github.com/MrBns/form-response/internal/db"
 )
 
 // initializeApp is the Wire injector function.
-// Wire reads this function's body and generates the wiring code in wire_gen.go.
+// Wire reads this function's body, resolves the dependency graph from the
+// provider sets, and generates the wiring code in wire_gen.go.
 func initializeApp() (*app.App, error) {
 	wire.Build(
-		config.ProviderSet,
-		notifier.ProviderSet,
-		handler.ProviderSet,
-		app.ProviderSet,
+		config.ProviderSet,   // Load → *Config → TelegramConfig, DiscordConfig, ServerConfig, DBConfig
+		db.NewPool,           // DBConfig → *pgxpool.Pool
+		formresponse.ProviderSet, // TelegramConfig, DiscordConfig → Notifiers → *FormHandler
+		feedback.ProviderSet, // *pgxpool.Pool → Repository → Service → *Handler
+		app.ProviderSet,      // ServerConfig, *FormHandler, *feedback.Handler → *App
 	)
 	return nil, nil
 }

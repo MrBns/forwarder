@@ -12,9 +12,9 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/google/wire"
 
+	"github.com/MrBns/form-response/features/feedback"
+	"github.com/MrBns/form-response/features/formresponse"
 	"github.com/MrBns/form-response/internal/config"
-	"github.com/MrBns/form-response/internal/handler"
-	"github.com/MrBns/form-response/internal/notifier"
 )
 
 // ProviderSet is the Wire provider set for the app package.
@@ -27,8 +27,12 @@ type App struct {
 }
 
 // New constructs the App by wiring the router, middleware, and routes.
-// Wire injects the ServerConfig, FormHandler, and Notifiers at compile time.
-func New(cfg config.ServerConfig, formHandler *handler.FormHandler, ns notifier.Notifiers) *App {
+// Wire injects all dependencies at compile time.
+func New(
+	cfg config.ServerConfig,
+	formHandler *formresponse.FormHandler,
+	feedbackHandler *feedback.Handler,
+) *App {
 	r := chi.NewRouter()
 
 	// Standard middleware stack.
@@ -40,25 +44,26 @@ func New(cfg config.ServerConfig, formHandler *handler.FormHandler, ns notifier.
 	// CORS — restrict to configured origins.
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   cfg.AllowedOrigins,
-		AllowedMethods:   []string{"POST", "OPTIONS"},
+		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Content-Type"},
 		AllowCredentials: false,
 		MaxAge:           300,
 	}))
 
 	// Routes.
-	r.Get("/health", handler.HealthCheck)
+	r.Get("/health", formresponse.HealthCheck)
+
 	r.Route("/api", func(r chi.Router) {
+		// Form-response feature: POST /api/submit → Telegram / Discord
 		r.Post("/submit", formHandler.Submit)
+
+		// Feedback feature: POST /api/feedback → Postgres
+		//                   GET  /api/feedback → list from Postgres
+		r.Post("/feedback", feedbackHandler.Submit)
+		r.Get("/feedback", feedbackHandler.List)
 	})
 
-	// Log which notifiers are active.
-	if len(ns) == 0 {
-		log.Println("WARNING: no notifier configured – set TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID or DISCORD_WEBHOOK_URL")
-	}
-	for _, n := range ns {
-		log.Printf("%s notifier: enabled", n.Name())
-	}
+	log.Printf("allowed origins: %v", cfg.AllowedOrigins)
 
 	return &App{router: r, port: cfg.Port}
 }

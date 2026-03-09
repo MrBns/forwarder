@@ -1,4 +1,4 @@
-package handler_test
+package formresponse_test
 
 import (
 	"bytes"
@@ -8,10 +8,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/MrBns/form-response/internal/handler"
+	"github.com/MrBns/form-response/features/formresponse"
 )
 
-// stubNotifier is a test double for notifier.Notifier.
+// stubNotifier is a test double for formresponse.Notifier.
 type stubNotifier struct {
 	name    string
 	sendErr error
@@ -26,10 +26,7 @@ func (s *stubNotifier) Send(_ context.Context, msg string) error {
 
 func postJSON(t *testing.T, h http.Handler, body any) *httptest.ResponseRecorder {
 	t.Helper()
-	b, err := json.Marshal(body)
-	if err != nil {
-		t.Fatalf("marshal body: %v", err)
-	}
+	b, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/api/submit", bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Origin", "https://example.com")
@@ -40,7 +37,7 @@ func postJSON(t *testing.T, h http.Handler, body any) *httptest.ResponseRecorder
 
 func TestSubmit_Success(t *testing.T) {
 	stub := &stubNotifier{name: "telegram"}
-	h := handler.NewFormHandler(stub)
+	h := formresponse.NewFormHandler(formresponse.Notifiers{stub})
 
 	rr := postJSON(t, http.HandlerFunc(h.Submit), map[string]any{
 		"fields": map[string]string{"name": "Alice", "email": "alice@example.com"},
@@ -55,7 +52,7 @@ func TestSubmit_Success(t *testing.T) {
 }
 
 func TestSubmit_EmptyFields(t *testing.T) {
-	h := handler.NewFormHandler()
+	h := formresponse.NewFormHandler(nil)
 
 	rr := postJSON(t, http.HandlerFunc(h.Submit), map[string]any{"fields": map[string]string{}})
 
@@ -65,7 +62,7 @@ func TestSubmit_EmptyFields(t *testing.T) {
 }
 
 func TestSubmit_InvalidJSON(t *testing.T) {
-	h := handler.NewFormHandler()
+	h := formresponse.NewFormHandler(nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/submit", bytes.NewReader([]byte("not-json")))
 	req.Header.Set("Content-Type", "application/json")
@@ -78,8 +75,8 @@ func TestSubmit_InvalidJSON(t *testing.T) {
 }
 
 func TestSubmit_AllNotifiersFail(t *testing.T) {
-	stub := &stubNotifier{name: "telegram", sendErr: &testError{"boom"}}
-	h := handler.NewFormHandler(stub)
+	stub := &stubNotifier{name: "telegram", sendErr: &testErr{"boom"}}
+	h := formresponse.NewFormHandler(formresponse.Notifiers{stub})
 
 	rr := postJSON(t, http.HandlerFunc(h.Submit), map[string]any{
 		"fields": map[string]string{"key": "value"},
@@ -90,11 +87,10 @@ func TestSubmit_AllNotifiersFail(t *testing.T) {
 	}
 }
 
-func TestSubmit_PartialNotifierFailure(t *testing.T) {
-	// One notifier succeeds, one fails → should still return 200.
+func TestSubmit_PartialFailure_StillReturns200(t *testing.T) {
 	ok := &stubNotifier{name: "discord"}
-	bad := &stubNotifier{name: "telegram", sendErr: &testError{"fail"}}
-	h := handler.NewFormHandler(ok, bad)
+	bad := &stubNotifier{name: "telegram", sendErr: &testErr{"fail"}}
+	h := formresponse.NewFormHandler(formresponse.Notifiers{ok, bad})
 
 	rr := postJSON(t, http.HandlerFunc(h.Submit), map[string]any{
 		"fields": map[string]string{"key": "value"},
@@ -105,9 +101,8 @@ func TestSubmit_PartialNotifierFailure(t *testing.T) {
 	}
 }
 
-func TestSubmit_NilNotifiersIgnored(t *testing.T) {
-	// Passing nil notifiers must not panic.
-	h := handler.NewFormHandler(nil, nil)
+func TestSubmit_NoNotifiers_Returns200(t *testing.T) {
+	h := formresponse.NewFormHandler(nil)
 
 	rr := postJSON(t, http.HandlerFunc(h.Submit), map[string]any{
 		"fields": map[string]string{"key": "value"},
@@ -121,13 +116,13 @@ func TestSubmit_NilNotifiersIgnored(t *testing.T) {
 func TestHealthCheck(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rr := httptest.NewRecorder()
-	handler.HealthCheck(rr, req)
+	formresponse.HealthCheck(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("status = %d, want %d", rr.Code, http.StatusOK)
 	}
 }
 
-type testError struct{ msg string }
+type testErr struct{ msg string }
 
-func (e *testError) Error() string { return e.msg }
+func (e *testErr) Error() string { return e.msg }
