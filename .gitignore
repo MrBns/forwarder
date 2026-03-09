@@ -1,0 +1,16 @@
+# Binaries
+forwarder
+*.exe
+
+# Environment
+.env
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
