@@ -1,0 +1,19 @@
+# Binaries
+form-response
+*.exe
+*.out
+
+# Go toolchain
+vendor/
+
+# Environment variable files
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
