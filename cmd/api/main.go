@@ -10,22 +10,26 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mrbns/forwarder/internal/config"
-	"github.com/mrbns/forwarder/internal/server"
+	"github.com/mrbns/forwarder/shared/config"
 )
 
 func main() {
 	cfg := config.Load()
 
+	handler, err := build(cfg)
+	if err != nil {
+		log.Fatalf("failed to build application: %v", err)
+	}
+
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
-		Handler:      server.New(cfg),
+		Handler:      handler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Start server in background.
+	// Start in background.
 	go func() {
 		log.Printf("forwarder listening on :%s", cfg.Port)
 		if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {

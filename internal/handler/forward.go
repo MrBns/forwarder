@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/MrBns/forwarder/internal/notifier"
+	"github.com/mrbns/forwarder/internal/notifier"
 )
 
 // ForwardRequest is the JSON body accepted by POST /api/forward.

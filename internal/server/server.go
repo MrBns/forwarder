@@ -7,9 +7,9 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
-	"github.com/MrBns/forwarder/internal/config"
-	"github.com/MrBns/forwarder/internal/handler"
-	"github.com/MrBns/forwarder/internal/notifier"
+	"github.com/mrbns/forwarder/internal/config"
+	"github.com/mrbns/forwarder/internal/handler"
+	"github.com/mrbns/forwarder/internal/notifier"
 )
 
 // New assembles and returns the application HTTP router.

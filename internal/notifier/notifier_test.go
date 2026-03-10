@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/MrBns/forwarder/internal/notifier"
+	"github.com/mrbns/forwarder/internal/notifier"
 )
 
 func TestNewDiscordNotifier_NilWhenNoURL(t *testing.T) {

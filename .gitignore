@@ -7,10 +7,19 @@ forwarder
 
 # Editor
 .idea/
-.vscode/
+
+
+# directory
+tmp/
+
 *.swp
 *.swo
+
 
 # OS
 .DS_Store
 Thumbs.db
+
+*.bin
+*__debug_bin*
+./forwarder.*

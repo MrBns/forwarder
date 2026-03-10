@@ -1,4 +1,4 @@
-package handler_test
+package forwarder_test
 
 import (
 	"bytes"
@@ -8,48 +8,43 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/mrbns/forwarder/internal/handler"
-	"github.com/mrbns/forwarder/internal/notifier"
+	"github.com/mrbns/forwarder/internal/feature/forwarder"
 )
 
-// mockNotifier is a simple in-memory notifier for testing.
+// mockNotifier is an in-memory test double for forwarder.Notifier.
 type mockNotifier struct {
 	name    string
 	sendErr error
-	sent    []notifier.Message
+	sent    []forwarder.Message
+	data    []byte
 }
 
 func (m *mockNotifier) Name() string { return m.name }
-func (m *mockNotifier) Send(msg notifier.Message) error {
+func (m *mockNotifier) Send(msg forwarder.Message) ([]byte, error) {
 	m.sent = append(m.sent, msg)
-	return m.sendErr
+	return m.data, m.sendErr
 }
 
-func post(handler http.Handler, body interface{}) *httptest.ResponseRecorder {
+func postForward(h http.Handler, body any) *httptest.ResponseRecorder {
 	b, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/api/forward", bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
+	h.ServeHTTP(rr, req)
 	return rr
 }
 
 func TestForwardHandler_AllPlatforms(t *testing.T) {
 	discord := &mockNotifier{name: "discord"}
 	slack := &mockNotifier{name: "slack"}
+	h := forwarder.NewHandler([]forwarder.Notifier{discord, slack})
 
-	h := handler.NewForwardHandler([]notifier.Notifier{discord, slack})
-
-	rr := post(h, handler.ForwardRequest{
-		Title:       "Hello",
-		Description: "World",
-	})
+	rr := postForward(h, forwarder.Request{Title: "Hello", Description: "World"})
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
 	}
-
-	var resp handler.ForwardResponse
+	var resp forwarder.Response
 	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
@@ -67,10 +62,9 @@ func TestForwardHandler_FilterByPlatform(t *testing.T) {
 	discord := &mockNotifier{name: "discord"}
 	slack := &mockNotifier{name: "slack"}
 	telegram := &mockNotifier{name: "telegram"}
+	h := forwarder.NewHandler([]forwarder.Notifier{discord, slack, telegram})
 
-	h := handler.NewForwardHandler([]notifier.Notifier{discord, slack, telegram})
-
-	rr := post(h, handler.ForwardRequest{
+	rr := postForward(h, forwarder.Request{
 		Title:     "targeted",
 		Platforms: []string{"discord", "telegram"},
 	})
@@ -78,10 +72,8 @@ func TestForwardHandler_FilterByPlatform(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr.Code)
 	}
-
-	var resp handler.ForwardResponse
+	var resp forwarder.Response
 	_ = json.NewDecoder(rr.Body).Decode(&resp)
-
 	if len(resp.Results) != 2 {
 		t.Fatalf("expected 2 results, got %d", len(resp.Results))
 	}
@@ -91,10 +83,8 @@ func TestForwardHandler_FilterByPlatform(t *testing.T) {
 }
 
 func TestForwardHandler_NoPlatformsEnabled(t *testing.T) {
-	h := handler.NewForwardHandler(nil)
-
-	rr := post(h, handler.ForwardRequest{Title: "test"})
-
+	h := forwarder.NewHandler(nil)
+	rr := postForward(h, forwarder.Request{Title: "test"})
 	if rr.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected 503, got %d", rr.Code)
 	}
@@ -102,13 +92,12 @@ func TestForwardHandler_NoPlatformsEnabled(t *testing.T) {
 
 func TestForwardHandler_PlatformNotFound(t *testing.T) {
 	discord := &mockNotifier{name: "discord"}
-	h := handler.NewForwardHandler([]notifier.Notifier{discord})
+	h := forwarder.NewHandler([]forwarder.Notifier{discord})
 
-	rr := post(h, handler.ForwardRequest{
+	rr := postForward(h, forwarder.Request{
 		Title:     "targeted",
 		Platforms: []string{"nonexistent"},
 	})
-
 	if rr.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected 503, got %d", rr.Code)
 	}
@@ -117,23 +106,19 @@ func TestForwardHandler_PlatformNotFound(t *testing.T) {
 func TestForwardHandler_PartialFailure(t *testing.T) {
 	discord := &mockNotifier{name: "discord"}
 	slack := &mockNotifier{name: "slack", sendErr: fmt.Errorf("webhook offline")}
+	h := forwarder.NewHandler([]forwarder.Notifier{discord, slack})
 
-	h := handler.NewForwardHandler([]notifier.Notifier{discord, slack})
-
-	rr := post(h, handler.ForwardRequest{Title: "partial"})
-
+	rr := postForward(h, forwarder.Request{Title: "partial"})
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr.Code)
 	}
 
-	var resp handler.ForwardResponse
+	var resp forwarder.Response
 	_ = json.NewDecoder(rr.Body).Decode(&resp)
-
-	results := map[string]notifier.Result{}
+	results := map[string]forwarder.Result{}
 	for _, r := range resp.Results {
 		results[r.Platform] = r
 	}
-
 	if !results["discord"].Success {
 		t.Error("discord should have succeeded")
 	}
@@ -146,13 +131,11 @@ func TestForwardHandler_PartialFailure(t *testing.T) {
 }
 
 func TestForwardHandler_InvalidJSON(t *testing.T) {
-	h := handler.NewForwardHandler([]notifier.Notifier{&mockNotifier{name: "discord"}})
-
-	req := httptest.NewRequest(http.MethodPost, "/api/forward", bytes.NewBufferString("{invalid json"))
+	h := forwarder.NewHandler([]forwarder.Notifier{&mockNotifier{name: "discord"}})
+	req := httptest.NewRequest(http.MethodPost, "/api/forward", bytes.NewBufferString("{invalid"))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
-
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rr.Code)
 	}
@@ -160,28 +143,26 @@ func TestForwardHandler_InvalidJSON(t *testing.T) {
 
 func TestForwardHandler_MessageFields(t *testing.T) {
 	mock := &mockNotifier{name: "discord"}
-	h := handler.NewForwardHandler([]notifier.Notifier{mock})
+	h := forwarder.NewHandler([]forwarder.Notifier{mock})
 
-	req := handler.ForwardRequest{
+	req := forwarder.Request{
 		Title:       "title",
 		Description: "desc",
 		Note:        "note",
 		Footer:      "footer",
 		Fields:      map[string]string{"k": "v"},
-		Attachments: []notifier.Attachment{{Name: "file", URL: "https://example.com/file", Type: "link"}},
+		Attachments: []forwarder.Attachment{{Name: "file", URL: "https://example.com/file", Type: "link"}},
 	}
-	rr := post(h, req)
-
+	rr := postForward(h, req)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr.Code)
 	}
 	if len(mock.sent) != 1 {
 		t.Fatalf("expected 1 sent message, got %d", len(mock.sent))
 	}
-
 	sent := mock.sent[0]
 	if sent.Title != req.Title {
-		t.Errorf("title mismatch: got %q", sent.Title)
+		t.Errorf("title: got %q, want %q", sent.Title, req.Title)
 	}
 	if sent.Description != req.Description {
 		t.Errorf("description mismatch")
