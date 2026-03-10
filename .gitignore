@@ -1,19 +1,16 @@
 # Binaries
-form-response
+forwarder
 *.exe
-*.out
 
-# Go toolchain
-vendor/
-
-# Environment variable files
+# Environment
 .env
-.env.*
-!.env.example
 
-# IDE
+# Editor
 .idea/
-.vscode/
+
+*.swp
+*.swo
 
 # OS
 .DS_Store
+Thumbs.db

@@ -1,62 +1,28 @@
 # forwarder
 
-A unified, platform-agnostic notification forwarding API built with **Go + Chi**.  
-Send one HTTP request — have it delivered to every enabled messaging platform simultaneously.  
-Collect and persist user feedback to PostgreSQL when you need a paper trail.
+A unified, platform-agnostic notification forwarding API. Send a single HTTP request and have it delivered to every enabled messaging platform (Discord, Slack, Telegram) simultaneously.
 
 ---
 
 ## Features
 
-| Feature | Endpoint | Storage |
-|---------|----------|---------|
-| Forward rich notifications | `POST /api/forward` | Telegram · Discord · Slack |
-| Submit a simple form | `POST /api/submit` | Telegram · Discord |
-| Collect feedback | `POST /api/feedback` | PostgreSQL |
-| Read feedback | `GET /api/feedback` | PostgreSQL |
-| Liveness probe | `GET /health` | — |
-
-- **Auto-enable** — a platform activates simply by setting its env vars; no code changes required.
-- **Partial-failure resilience** — if one platform fails the others still receive the message.
-- **Graceful shutdown** — SIGINT / SIGTERM handled cleanly.
-- **Optional database** — the feedback feature is skipped at startup when `DATABASE_URL` is unset.
+- **Single endpoint** – `POST /api/forward` forwards your message to all enabled platforms in one call.
+- **Flexible payload** – supports `title`, `description`, `note`, `footer`, `fields` (key-value map), and `attachments` (files / links).
+- **Platform targeting** – optionally choose which platforms receive a specific message via the `platforms` field.
+- **Auto-enable** – a platform is enabled simply by setting its credentials in the environment; no code changes needed.
+- **Partial-failure resilience** – if one platform fails the others still receive the message; per-platform results are returned.
+- **Graceful shutdown** – SIGINT / SIGTERM are handled cleanly.
+- **CORS** – configurable allowed origins.
 
 ---
 
-## Project Structure
+## Supported Platforms
 
-```
-cmd/
-  api/
-    main.go          entry point — HTTP server with graceful shutdown
-    container.go     composition root — wires all features (manual DI)
-internal/
-  feature/
-    forwarder/       POST /api/forward — rich message fan-out
-      domain.go        Message · Attachment · Result types; Notifier outgoing port
-      handler.go       HTTP incoming adapter
-      telegram.go      Telegram outgoing adapter
-      discord.go       Discord outgoing adapter
-      slack.go         Slack outgoing adapter
-    submitter/       POST /api/submit — simple form forwarding
-      domain.go        Notifier outgoing port + formatting helpers
-      handler.go       HTTP incoming adapter
-      telegram.go      Telegram outgoing adapter
-      discord.go       Discord outgoing adapter
-      notifiers.go     NewNotifiers constructor
-    feedback/        POST/GET /api/feedback — Postgres persistence
-      domain.go        Feedback model; Repository + Service ports
-      service.go       Application service
-      repository.go    PostgreSQL outgoing adapter
-      handler.go       HTTP incoming adapter
-shared/
-  config/            Flat env-var config loaded once at startup
-  db/                Shared pgxpool.Pool constructor
-  server/            Chi router factory + HealthCheck handler
-```
-
-Each feature is a self-contained hexagonal slice: the **port** (interface) and its **adapters** (concrete implementations) live in the same feature directory.  
-The composition root (`cmd/api/container.go`) is the only place that knows about all features.
+| Platform | Required env vars |
+|----------|-------------------|
+| Discord  | `DISCORD_WEBHOOK_URL` |
+| Slack    | `SLACK_WEBHOOK_URL` |
+| Telegram | `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` |
 
 ---
 
@@ -69,30 +35,22 @@ cd forwarder
 
 # 2. Configure
 cp .env.example .env
-# Edit .env and fill in the credentials for the platforms you want.
+# Edit .env and fill in the credentials for the platforms you want to enable.
 
 # 3. Run
-go run ./cmd/api
+go run .
+# Server starts on :8080
 ```
-
----
-
-## Platform Configuration
-
-| Platform | Env vars required |
-|----------|-------------------|
-| Discord  | `DISCORD_WEBHOOK_URL` |
-| Slack    | `SLACK_WEBHOOK_URL` |
-| Telegram | `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` |
-| PostgreSQL | `DATABASE_URL` (feedback feature only) |
-
-Omit a variable entirely to disable that platform — no restarts or code changes needed.
 
 ---
 
 ## API Reference
 
 ### `GET /health`
+
+Liveness probe.
+
+**Response `200 OK`**
 ```json
 {"status": "ok"}
 ```
@@ -100,87 +58,77 @@ Omit a variable entirely to disable that platform — no restarts or code change
 ---
 
 ### `POST /api/forward`
-Fans a rich message out to all enabled platforms (or a targeted subset).
 
-**Request**
-```json
-{
-  "title":       "Deployment complete",
-  "description": "v2.4.1 deployed to production.",
-  "note":        "Rollback instructions in the runbook.",
-  "footer":      "Triggered by CI pipeline",
-  "fields":      { "env": "production", "commit": "a1b2c3d" },
-  "attachments": [{ "name": "Release notes", "url": "https://example.com/releases/v2.4.1", "type": "link" }],
-  "platforms":   ["discord", "slack"]
-}
-```
-Omit `platforms` to send to **all** enabled platforms.
+Forward a message to all enabled platforms (or a subset).
+
+**Request body** (`application/json`)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `title` | `string` | Short heading for the notification |
+| `description` | `string` | Main body text |
+| `note` | `string` | Optional callout / remark |
+| `footer` | `string` | Small metadata shown at the bottom |
+| `fields` | `object` | Arbitrary key-value pairs for structured data |
+| `attachments` | `array` | Files or links (see below) |
+| `platforms` | `array of string` | Target specific platforms (`"discord"`, `"slack"`, `"telegram"`). Omit to send to **all** enabled platforms. |
+
+**Attachment object**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | `string` | Display name of the attachment |
+| `url` | `string` | URL to the file or resource |
+| `type` | `string` | Hint: `"image"`, `"file"`, `"link"`, etc. (optional) |
 
 **Response `200 OK`**
 ```json
 {
   "results": [
-    { "platform": "discord", "success": true },
-    { "platform": "slack",   "success": false, "error": "slack: unexpected status 503" }
-  ]
-}
-```
-**Response `503`** — no platforms enabled or none matched `platforms`.
-
----
-
-### `POST /api/submit`
-Forwards a simple key-value form to Telegram / Discord.
-
-**Request**
-```json
-{ "fields": { "name": "Alice", "email": "alice@example.com", "message": "Hello!" } }
-```
-
-**Response `200 OK`** — `{ "success": true, "message": "form submitted successfully" }`  
-**Response `400`** — invalid JSON or empty `fields`.  
-**Response `500`** — all notifiers failed.
-
----
-
-### `POST /api/feedback`
-Persists a feedback record to PostgreSQL (requires `DATABASE_URL`).
-
-**Request** — same shape as `/api/submit`
-
-**Response `201 Created`** — the persisted `Feedback` object.
-
----
-
-### `GET /api/feedback`
-Returns paginated feedback records, newest first.
-
-```
-GET /api/feedback?limit=20&offset=0
-```
-
-**Response `200 OK`**
-```json
-{
-  "feedbacks": [
-    { "id": "uuid", "fields": { "rating": "5" }, "origin": "https://your-site.com", "created_at": "2026-03-10T01:00:00Z" }
+    {"platform": "discord",  "success": true},
+    {"platform": "slack",    "success": true},
+    {"platform": "telegram", "success": false, "error": "telegram: unexpected status 401"}
   ]
 }
 ```
 
+**Response `503 Service Unavailable`** – no platforms are enabled or none matched the requested `platforms` list.
+
 ---
 
-## Development
+## Examples
+
+### Full message to all platforms
 
 ```bash
-# Run tests
-go test ./...
+curl -X POST http://localhost:8080/api/forward \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Deployment complete",
+    "description": "Version 2.4.1 has been deployed to production.",
+    "note": "Rollback instructions available in the runbook.",
+    "footer": "Triggered by CI pipeline",
+    "fields": {
+      "environment": "production",
+      "duration":    "3m 12s",
+      "commit":      "a1b2c3d"
+    },
+    "attachments": [
+      {"name": "Release notes", "url": "https://example.com/releases/2.4.1", "type": "link"}
+    ]
+  }'
+```
 
-# Build binary
-go build -o forwarder ./cmd/api
+### Target only Discord and Slack
 
-# Run with live reload (requires air)
-air -c .air.toml
+```bash
+curl -X POST http://localhost:8080/api/forward \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Alert",
+    "description": "High memory usage detected.",
+    "platforms": ["discord", "slack"]
+  }'
 ```
 
 ---
@@ -189,10 +137,24 @@ air -c .air.toml
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PORT` | `8080` | HTTP listen port |
-| `ALLOWED_ORIGINS` | `*` | Comma-separated CORS origins |
-| `DISCORD_WEBHOOK_URL` | — | Discord incoming webhook |
-| `SLACK_WEBHOOK_URL` | — | Slack incoming webhook |
+| `PORT` | `8080` | Port the HTTP server listens on |
+| `ALLOWED_ORIGINS` | `*` | Comma-separated CORS allowed origins |
+| `DISCORD_WEBHOOK_URL` | — | Discord incoming webhook URL |
+| `SLACK_WEBHOOK_URL` | — | Slack incoming webhook URL |
 | `TELEGRAM_BOT_TOKEN` | — | Telegram Bot API token |
-| `TELEGRAM_CHAT_ID` | — | Telegram target chat/channel ID |
-| `DATABASE_URL` | — | PostgreSQL DSN (disables feedback feature when absent) |
+| `TELEGRAM_CHAT_ID` | — | Telegram target chat / channel ID |
+
+---
+
+## Development
+
+```bash
+# Build
+go build -o forwarder .
+
+# Run tests
+go test ./...
+
+# Run with live reload (requires air)
+air
+```
