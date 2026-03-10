@@ -21,4 +21,5 @@ tmp/
 Thumbs.db
 
 *.bin
+*__debug_bin*
 ./forwarder.*

@@ -16,12 +16,13 @@ type mockNotifier struct {
 	name    string
 	sendErr error
 	sent    []forwarder.Message
+	data    []byte
 }
 
 func (m *mockNotifier) Name() string { return m.name }
-func (m *mockNotifier) Send(msg forwarder.Message) error {
+func (m *mockNotifier) Send(msg forwarder.Message) ([]byte, error) {
 	m.sent = append(m.sent, msg)
-	return m.sendErr
+	return m.data, m.sendErr
 }
 
 func postForward(h http.Handler, body any) *httptest.ResponseRecorder {

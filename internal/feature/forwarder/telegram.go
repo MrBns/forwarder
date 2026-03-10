@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 )
@@ -48,7 +49,7 @@ func NewTelegramNotifierWithBaseURL(botToken, chatID string, client *http.Client
 func (t *TelegramNotifier) Name() string { return "telegram" }
 
 // Send formats msg as HTML and POSTs it to the Telegram Bot API.
-func (t *TelegramNotifier) Send(msg Message) error {
+func (t *TelegramNotifier) Send(msg Message) ([]byte, error) {
 	text := buildTelegramText(msg)
 
 	payload := map[string]string{
@@ -58,20 +59,24 @@ func (t *TelegramNotifier) Send(msg Message) error {
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("telegram: marshal payload: %w", err)
+		return nil, fmt.Errorf("telegram: marshal payload: %w", err)
 	}
 
 	url := fmt.Sprintf("%s/bot%s/sendMessage", t.baseURL, t.botToken)
 	resp, err := t.client.Post(url, "application/json", bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("telegram: send request: %w", err)
+		return nil, fmt.Errorf("telegram: send request: %w", err)
 	}
+
+	data, err := io.ReadAll(resp.Body)
+
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("telegram: unexpected status %d", resp.StatusCode)
+		return data, fmt.Errorf("telegram: unexpected status %d", resp.StatusCode)
 	}
-	return nil
+
+	return data, err
 }
 
 func buildTelegramText(msg Message) string {
@@ -87,19 +92,19 @@ func buildTelegramText(msg Message) string {
 		sb.WriteString("\n\n")
 	}
 	if msg.Note != "" {
-		sb.WriteString("📝 <i>Note: ")
+		sb.WriteString("<i>📝 Note: ")
 		sb.WriteString(htmlEscape(msg.Note))
 		sb.WriteString("</i>\n\n")
 	}
 	if len(msg.Fields) > 0 {
-		sb.WriteString("<b>Details:</b>\n")
+		sb.WriteString("<b>ℹ️ Details:</b>\n")
 		for k, v := range msg.Fields {
 			sb.WriteString(fmt.Sprintf("• <b>%s:</b> %s\n", htmlEscape(k), htmlEscape(v)))
 		}
 		sb.WriteString("\n")
 	}
 	if len(msg.Attachments) > 0 {
-		sb.WriteString("<b>Attachments:</b>\n")
+		sb.WriteString("<b>🔗 Attachments:</b>\n")
 		for _, a := range msg.Attachments {
 			name := a.Name
 			if name == "" {
@@ -110,7 +115,7 @@ func buildTelegramText(msg Message) string {
 		sb.WriteString("\n")
 	}
 	if msg.Footer != "" {
-		sb.WriteString("—\n<i>")
+		sb.WriteString("<i>")
 		sb.WriteString(htmlEscape(msg.Footer))
 		sb.WriteString("</i>")
 	}

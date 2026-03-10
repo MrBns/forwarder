@@ -10,6 +10,8 @@
 //   - slack.go    — Slack outgoing adapter
 package forwarder
 
+import "encoding/json"
+
 // Attachment represents a linked file or URL included with a forwarded message.
 type Attachment struct {
 	Name string `json:"name"`
@@ -31,9 +33,10 @@ type Message struct {
 
 // Result captures the delivery outcome for a single platform.
 type Result struct {
-	Platform string `json:"platform"`
-	Success  bool   `json:"success"`
-	Error    string `json:"error,omitempty"`
+	Platform string          `json:"platform"`
+	Success  bool            `json:"success"`
+	Error    string          `json:"error,omitempty"`
+	Data     json.RawMessage `json:"data"`
 }
 
 // Notifier is the outgoing port that every messaging-platform adapter must
@@ -44,5 +47,5 @@ type Notifier interface {
 	Name() string
 	// Send delivers msg to the platform.  It returns an error when delivery
 	// fails; partial failures are surfaced in the API response, not panicked.
-	Send(msg Message) error
+	Send(msg Message) ([]byte, error)
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 )
@@ -31,25 +32,28 @@ func NewDiscordNotifier(webhookURL string, client *http.Client) *DiscordNotifier
 func (d *DiscordNotifier) Name() string { return "discord" }
 
 // Send formats msg as Markdown and POSTs it to the Discord webhook.
-func (d *DiscordNotifier) Send(msg Message) error {
+func (d *DiscordNotifier) Send(msg Message) ([]byte, error) {
 	content := buildDiscordContent(msg)
 
 	payload := map[string]string{"content": content}
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("discord: marshal payload: %w", err)
+		return nil, fmt.Errorf("discord: marshal payload: %w", err)
 	}
 
 	resp, err := d.client.Post(d.webhookURL, "application/json", bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("discord: send request: %w", err)
+		return nil, fmt.Errorf("discord: send request: %w", err)
 	}
+
+	data, err := io.ReadAll(resp.Body)
+
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("discord: unexpected status %d", resp.StatusCode)
+		return data, fmt.Errorf("discord: unexpected status %d", resp.StatusCode)
 	}
-	return nil
+	return data, err
 }
 
 func buildDiscordContent(msg Message) string {

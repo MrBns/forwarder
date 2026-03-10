@@ -65,10 +65,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	results := make([]Result, 0, len(targets))
 	for _, n := range targets {
 		res := Result{Platform: n.Name(), Success: true}
-		if err := n.Send(msg); err != nil {
+
+		data, err := n.Send(msg)
+		if err != nil {
 			res.Success = false
 			res.Error = err.Error()
+
 		}
+
+		res.Data = data
 		results = append(results, res)
 	}
 

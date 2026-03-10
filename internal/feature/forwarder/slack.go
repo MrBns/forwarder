@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 )
@@ -42,25 +43,27 @@ type slackText struct {
 }
 
 // Send formats msg as Slack Block Kit blocks and POSTs it to the webhook.
-func (s *SlackNotifier) Send(msg Message) error {
+func (s *SlackNotifier) Send(msg Message) ([]byte, error) {
 	blocks := buildSlackBlocks(msg)
 
 	payload := map[string]any{"blocks": blocks}
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("slack: marshal payload: %w", err)
+		return nil, fmt.Errorf("slack: marshal payload: %w", err)
 	}
 
 	resp, err := s.client.Post(s.webhookURL, "application/json", bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("slack: send request: %w", err)
+		return nil, fmt.Errorf("slack: send request: %w", err)
 	}
+
+	data, err := io.ReadAll(resp.Body)
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("slack: unexpected status %d", resp.StatusCode)
+		return data, fmt.Errorf("slack: unexpected status %d", resp.StatusCode)
 	}
-	return nil
+	return data, err
 }
 
 func buildSlackBlocks(msg Message) []slackBlock {

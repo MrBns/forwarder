@@ -38,7 +38,7 @@ func TestDiscordNotifier_Send_Success(t *testing.T) {
 		Footer: "f", Fields: map[string]string{"k": "v"},
 		Attachments: []forwarder.Attachment{{Name: "doc", URL: "https://example.com/doc"}},
 	}
-	if err := d.Send(msg); err != nil {
+	if _, err := d.Send(msg); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if received["content"] == "" {
@@ -52,7 +52,7 @@ func TestDiscordNotifier_Send_HTTPError(t *testing.T) {
 	}))
 	defer srv.Close()
 	d := forwarder.NewDiscordNotifier(srv.URL, srv.Client())
-	if err := d.Send(forwarder.Message{Title: "oops"}); err == nil {
+	if _, err := d.Send(forwarder.Message{Title: "oops"}); err == nil {
 		t.Fatal("expected error on non-2xx response")
 	}
 }
@@ -87,7 +87,7 @@ func TestSlackNotifier_Send_Success(t *testing.T) {
 		Footer: "powered by forwarder", Fields: map[string]string{"env": "prod"},
 		Attachments: []forwarder.Attachment{{Name: "link", URL: "https://example.com"}},
 	}
-	if err := s.Send(msg); err != nil {
+	if _, err := s.Send(msg); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	blocks, ok := received["blocks"]
@@ -105,7 +105,7 @@ func TestSlackNotifier_Send_HTTPError(t *testing.T) {
 	}))
 	defer srv.Close()
 	s := forwarder.NewSlackNotifier(srv.URL, srv.Client())
-	if err := s.Send(forwarder.Message{Title: "oops"}); err == nil {
+	if _, err := s.Send(forwarder.Message{Title: "oops"}); err == nil {
 		t.Fatal("expected error on non-2xx response")
 	}
 }
@@ -143,7 +143,7 @@ func TestTelegramNotifier_Send_Success(t *testing.T) {
 		Footer: "signed", Fields: map[string]string{"user": "alice"},
 		Attachments: []forwarder.Attachment{{Name: "ref", URL: "https://example.com/ref"}},
 	}
-	if err := tg.Send(msg); err != nil {
+	if _, err := tg.Send(msg); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if received["chat_id"] != "12345" {
@@ -160,7 +160,7 @@ func TestTelegramNotifier_Send_HTTPError(t *testing.T) {
 	}))
 	defer srv.Close()
 	tg := forwarder.NewTelegramNotifierWithBaseURL("bad", "123", srv.Client(), srv.URL)
-	if err := tg.Send(forwarder.Message{Title: "oops"}); err == nil {
+	if _, err := tg.Send(forwarder.Message{Title: "oops"}); err == nil {
 		t.Fatal("expected error on non-2xx response")
 	}
 }
