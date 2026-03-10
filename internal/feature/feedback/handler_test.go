@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MrBns/forwarder/internal/feature/feedback"
+	"github.com/mrbns/forwarder/internal/feature/feedback"
 )
 
 type stubService struct {

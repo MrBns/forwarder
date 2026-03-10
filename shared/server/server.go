@@ -10,7 +10,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
-	"github.com/MrBns/forwarder/shared/config"
+	"github.com/mrbns/forwarder/shared/config"
 )
 
 // NewRouter creates a chi.Mux pre-loaded with the standard middleware stack

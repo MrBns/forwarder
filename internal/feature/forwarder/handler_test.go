@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/MrBns/forwarder/internal/feature/forwarder"
+	"github.com/mrbns/forwarder/internal/feature/forwarder"
 )
 
 // mockNotifier is an in-memory test double for forwarder.Notifier.

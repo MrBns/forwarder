@@ -23,7 +23,7 @@ package main
 //	       ├─ NewRepository
 //	       ├─ NewService
 //	       └─ NewHandler         → POST /api/feedback, GET /api/feedback
-//	
+//
 //	server.NewRouter(cfg)          ← receives AllowedOrigins for CORS
 //	  ├─ GET  /health
 //	  ├─ POST /api/forward
@@ -35,12 +35,12 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/MrBns/forwarder/internal/feature/feedback"
-	"github.com/MrBns/forwarder/internal/feature/forwarder"
-	"github.com/MrBns/forwarder/internal/feature/submitter"
-	"github.com/MrBns/forwarder/shared/config"
-	"github.com/MrBns/forwarder/shared/db"
-	"github.com/MrBns/forwarder/shared/server"
+	"github.com/mrbns/forwarder/internal/feature/feedback"
+	"github.com/mrbns/forwarder/internal/feature/forwarder"
+	"github.com/mrbns/forwarder/internal/feature/submitter"
+	"github.com/mrbns/forwarder/shared/config"
+	"github.com/mrbns/forwarder/shared/db"
+	"github.com/mrbns/forwarder/shared/server"
 )
 
 // build resolves the full dependency graph and returns a configured http.Handler.

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/MrBns/forwarder/internal/feature/feedback"
+	"github.com/mrbns/forwarder/internal/feature/feedback"
 )
 
 type mockRepository struct {

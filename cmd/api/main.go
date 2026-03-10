@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/MrBns/forwarder/shared/config"
+	"github.com/mrbns/forwarder/shared/config"
 )
 
 func main() {

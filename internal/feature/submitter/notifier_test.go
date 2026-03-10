@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/MrBns/forwarder/internal/feature/submitter"
+	"github.com/mrbns/forwarder/internal/feature/submitter"
 )
 
 // ── TelegramNotifier ─────────────────────────────────────────────────────────

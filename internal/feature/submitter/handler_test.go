@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/MrBns/forwarder/internal/feature/submitter"
+	"github.com/mrbns/forwarder/internal/feature/submitter"
 )
 
 // stubNotifier is an in-memory test double for submitter.Notifier.
