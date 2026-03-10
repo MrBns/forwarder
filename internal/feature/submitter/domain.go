@@ -1,12 +1,13 @@
-// Package formresponse implements the form-response feature.
-// It follows a Hexagonal Architecture layout:
+// Package submitter implements the form-submission forwarding feature.
 //
-//   - domain.go      — outgoing port (Notifier interface) and domain types
-//   - handler.go     — incoming adapter (HTTP → domain)
-//   - telegram.go    — outgoing adapter (domain → Telegram Bot API)
-//   - discord.go     — outgoing adapter (domain → Discord webhook)
-//   - providers.go   — constructor helpers for the Notifiers slice
-package formresponse
+// Hexagonal Architecture layout:
+//
+//   - domain.go    — Notifier outgoing port and message-formatting helpers
+//   - handler.go   — HTTP incoming adapter  (POST /api/submit)
+//   - telegram.go  — Telegram outgoing adapter
+//   - discord.go   — Discord outgoing adapter
+//   - notifiers.go — NewNotifiers constructor helper
+package submitter
 
 import (
 	"context"
@@ -15,19 +16,18 @@ import (
 )
 
 // Notifier is the outgoing port for delivering form-submission notifications.
-// Any messaging back-end (Telegram, Discord, …) must implement this interface.
+// Any messaging back-end must implement this interface to participate.
 type Notifier interface {
 	// Name returns a human-readable label used in logs (e.g. "telegram").
 	Name() string
-	// Send delivers the formatted message to the destination.
+	// Send delivers the formatted message string to the destination.
 	Send(ctx context.Context, message string) error
 }
 
-// Notifiers is an ordered slice of active Notifier instances.
-// It is a distinct named type so Wire can inject it unambiguously.
+// Notifiers is a named slice of active Notifier instances.
 type Notifiers []Notifier
 
-// FormatHTML renders form fields as an HTML-formatted string (Telegram).
+// FormatHTML renders form fields as an HTML string for Telegram.
 func FormatHTML(origin string, fields map[string]string) string {
 	var sb strings.Builder
 	sb.WriteString("<b>📬 New Form Submission</b>\n")
@@ -41,7 +41,7 @@ func FormatHTML(origin string, fields map[string]string) string {
 	return sb.String()
 }
 
-// FormatMarkdown renders form fields as a Markdown-formatted string (Discord).
+// FormatMarkdown renders form fields as a Markdown string for Discord.
 func FormatMarkdown(origin string, fields map[string]string) string {
 	var sb strings.Builder
 	sb.WriteString("📬 **New Form Submission**\n")

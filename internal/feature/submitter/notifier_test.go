@@ -1,4 +1,4 @@
-package formresponse_test
+package submitter_test
 
 import (
 	"context"
@@ -7,15 +7,15 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/MrBns/forwarder/features/formresponse"
+	"github.com/MrBns/forwarder/internal/feature/submitter"
 )
 
-// --- TelegramNotifier tests -------------------------------------------------
+// ── TelegramNotifier ─────────────────────────────────────────────────────────
 
 func TestNewTelegramNotifier_NilWhenMissingCredentials(t *testing.T) {
 	cases := [][2]string{{"", "123"}, {"tok", ""}, {"", ""}}
 	for _, c := range cases {
-		if got := formresponse.NewTelegramNotifier(c[0], c[1]); got != nil {
+		if got := submitter.NewTelegramNotifier(c[0], c[1]); got != nil {
 			t.Errorf("expected nil for token=%q chatID=%q", c[0], c[1])
 		}
 	}
@@ -24,13 +24,13 @@ func TestNewTelegramNotifier_NilWhenMissingCredentials(t *testing.T) {
 func TestTelegramNotifier_Send(t *testing.T) {
 	var received map[string]string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewDecoder(r.Body).Decode(&received)
+		_ = json.NewDecoder(r.Body).Decode(&received)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"ok":true}`))
+		_, _ = w.Write([]byte(`{"ok":true}`))
 	}))
 	defer srv.Close()
 
-	n := formresponse.NewTelegramNotifierWithBaseURL("testtoken", "42", srv.URL)
+	n := submitter.NewTelegramNotifierWithBaseURL("testtoken", "42", srv.URL)
 	if n == nil {
 		t.Fatal("expected non-nil notifier")
 	}
@@ -48,10 +48,10 @@ func TestTelegramNotifier_Send(t *testing.T) {
 	}
 }
 
-// --- DiscordNotifier tests --------------------------------------------------
+// ── DiscordNotifier ──────────────────────────────────────────────────────────
 
 func TestNewDiscordNotifier_NilWhenMissingURL(t *testing.T) {
-	if got := formresponse.NewDiscordNotifier(""); got != nil {
+	if got := submitter.NewDiscordNotifier(""); got != nil {
 		t.Error("expected nil for empty webhook URL")
 	}
 }
@@ -59,12 +59,12 @@ func TestNewDiscordNotifier_NilWhenMissingURL(t *testing.T) {
 func TestDiscordNotifier_Send(t *testing.T) {
 	var received map[string]string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewDecoder(r.Body).Decode(&received)
+		_ = json.NewDecoder(r.Body).Decode(&received)
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer srv.Close()
 
-	n := formresponse.NewDiscordNotifier(srv.URL)
+	n := submitter.NewDiscordNotifier(srv.URL)
 	if n.Name() != "discord" {
 		t.Errorf("Name() = %q, want discord", n.Name())
 	}
@@ -76,27 +76,27 @@ func TestDiscordNotifier_Send(t *testing.T) {
 	}
 }
 
-// --- Format helpers tests ---------------------------------------------------
+// ── Formatting helpers ───────────────────────────────────────────────────────
 
 func TestFormatHTML_ContainsOriginAndFields(t *testing.T) {
-	msg := formresponse.FormatHTML("https://example.com", map[string]string{"name": "Alice"})
+	msg := submitter.FormatHTML("https://example.com", map[string]string{"name": "Alice"})
 	for _, want := range []string{"https://example.com", "Alice", "name"} {
-		if !contains(msg, want) {
+		if !containsStr(msg, want) {
 			t.Errorf("FormatHTML: message missing %q\n%s", want, msg)
 		}
 	}
 }
 
 func TestFormatMarkdown_ContainsOriginAndFields(t *testing.T) {
-	msg := formresponse.FormatMarkdown("https://example.com", map[string]string{"email": "a@b.com"})
+	msg := submitter.FormatMarkdown("https://example.com", map[string]string{"email": "a@b.com"})
 	for _, want := range []string{"https://example.com", "a@b.com", "email"} {
-		if !contains(msg, want) {
+		if !containsStr(msg, want) {
 			t.Errorf("FormatMarkdown: message missing %q\n%s", want, msg)
 		}
 	}
 }
 
-func contains(s, sub string) bool {
+func containsStr(s, sub string) bool {
 	for i := 0; i <= len(s)-len(sub); i++ {
 		if s[i:i+len(sub)] == sub {
 			return true

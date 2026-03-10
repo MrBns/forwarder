@@ -1,4 +1,4 @@
-package formresponse
+package submitter
 
 import (
 	"bytes"
@@ -8,14 +8,15 @@ import (
 	"net/http"
 )
 
-// DiscordNotifier is the outgoing adapter that forwards messages via a
-// Discord incoming webhook.  It implements the Notifier outgoing port.
+// DiscordNotifier is the outgoing adapter that forwards simple string messages
+// via a Discord incoming webhook.
+// It implements the Notifier outgoing port.
 type DiscordNotifier struct {
 	webhookURL string
 }
 
 // NewDiscordNotifier creates a DiscordNotifier.
-// Returns nil when webhookURL is empty (feature disabled).
+// Returns nil when webhookURL is empty (adapter disabled).
 func NewDiscordNotifier(webhookURL string) *DiscordNotifier {
 	if webhookURL == "" {
 		return nil
@@ -38,13 +39,12 @@ func (d *DiscordNotifier) Send(ctx context.Context, message string) error {
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := httpClient.Do(req)
+	resp, err := sharedClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("discord: send request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// Discord returns 204 No Content on success.
 	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("discord: unexpected status %d", resp.StatusCode)
 	}

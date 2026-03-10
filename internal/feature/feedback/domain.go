@@ -1,10 +1,12 @@
 // Package feedback implements the feedback-collection feature.
-// It follows a Hexagonal Architecture layout:
 //
-//   - domain.go      — domain model, Repository outgoing port, Service incoming port
-//   - service.go     — application service (implements Service)
-//   - repository.go  — PostgreSQL outgoing adapter (implements Repository)
-//   - handler.go     — HTTP incoming adapter
+// Hexagonal Architecture layout:
+//
+//   - domain.go      — Feedback domain model; Repository outgoing port;
+//     Service incoming port
+//   - service.go     — application service  (implements Service)
+//   - repository.go  — PostgreSQL outgoing adapter  (implements Repository)
+//   - handler.go     — HTTP incoming adapter  (POST /api/feedback, GET /api/feedback)
 package feedback
 
 import (
@@ -12,7 +14,7 @@ import (
 	"time"
 )
 
-// Feedback is the domain model representing a single piece of feedback.
+// Feedback is the domain model for a single piece of user feedback.
 type Feedback struct {
 	ID        string            `json:"id"`
 	Fields    map[string]string `json:"fields"`
@@ -21,18 +23,14 @@ type Feedback struct {
 }
 
 // Repository is the outgoing port for persisting and retrieving Feedback.
-// The PostgreSQL adapter in repository.go implements this interface.
+// The PostgreSQL adapter in repository.go satisfies this interface.
 type Repository interface {
-	// Save persists a new Feedback record.
 	Save(ctx context.Context, fb *Feedback) error
-	// List returns feedbacks ordered by creation time descending.
 	List(ctx context.Context, limit, offset int) ([]*Feedback, error)
 }
 
 // Service is the incoming application-service port called by the HTTP adapter.
 type Service interface {
-	// Submit validates, creates, and persists a new Feedback.
 	Submit(ctx context.Context, origin string, fields map[string]string) (*Feedback, error)
-	// List returns a paginated slice of persisted feedbacks.
 	List(ctx context.Context, limit, offset int) ([]*Feedback, error)
 }

@@ -8,7 +8,6 @@ import (
 )
 
 // Handler is the incoming HTTP adapter for the feedback feature.
-// It translates HTTP requests into calls on the Service incoming port.
 type Handler struct {
 	svc Service
 }
@@ -18,22 +17,19 @@ func NewHandler(svc Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-// submitRequest is the JSON body accepted by POST /api/feedback.
 type submitRequest struct {
 	Fields map[string]string `json:"fields"`
 }
 
-// Submit handles POST /api/feedback — validates the request, calls the
-// service, and returns the persisted Feedback as JSON.
+// Submit handles POST /api/feedback.
 func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	var req submitRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, errResponse("invalid JSON body"))
+		writeJSON(w, http.StatusBadRequest, errBody("invalid JSON body"))
 		return
 	}
-
 	if len(req.Fields) == 0 {
-		writeJSON(w, http.StatusBadRequest, errResponse("fields must not be empty"))
+		writeJSON(w, http.StatusBadRequest, errBody("fields must not be empty"))
 		return
 	}
 
@@ -41,15 +37,13 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	fb, err := h.svc.Submit(r.Context(), origin, req.Fields)
 	if err != nil {
 		log.Printf("feedback submit error: %v", err)
-		writeJSON(w, http.StatusInternalServerError, errResponse("failed to save feedback"))
+		writeJSON(w, http.StatusInternalServerError, errBody("failed to save feedback"))
 		return
 	}
-
 	writeJSON(w, http.StatusCreated, fb)
 }
 
-// List handles GET /api/feedback — returns paginated feedbacks.
-// Query params: limit (default 20), offset (default 0).
+// List handles GET /api/feedback with optional ?limit=N&offset=M query params.
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	limit := queryInt(r, "limit", 20)
 	offset := queryInt(r, "offset", 0)
@@ -57,31 +51,25 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	fbs, err := h.svc.List(r.Context(), limit, offset)
 	if err != nil {
 		log.Printf("feedback list error: %v", err)
-		writeJSON(w, http.StatusInternalServerError, errResponse("failed to retrieve feedbacks"))
+		writeJSON(w, http.StatusInternalServerError, errBody("failed to retrieve feedbacks"))
 		return
 	}
-
 	if fbs == nil {
 		fbs = []*Feedback{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"feedbacks": fbs})
 }
 
-// queryInt reads an integer query parameter, returning defaultVal on absence
-// or parse error.
-func queryInt(r *http.Request, key string, defaultVal int) int {
-	raw := r.URL.Query().Get(key)
-	if raw == "" {
-		return defaultVal
+func queryInt(r *http.Request, key string, def int) int {
+	if raw := r.URL.Query().Get(key); raw != "" {
+		if v, err := strconv.Atoi(raw); err == nil && v >= 0 {
+			return v
+		}
 	}
-	v, err := strconv.Atoi(raw)
-	if err != nil || v < 0 {
-		return defaultVal
-	}
-	return v
+	return def
 }
 
-func errResponse(msg string) map[string]any {
+func errBody(msg string) map[string]any {
 	return map[string]any{"success": false, "message": msg}
 }
 

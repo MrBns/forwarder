@@ -1,176 +1,171 @@
-# form-response
+# forwarder
 
-A lightweight **Go + Chi** web API that:
-
-- **Forwards** HTML form submissions to **Telegram** and/or **Discord** (no database).
-- **Persists** feedback to **PostgreSQL** and exposes a list endpoint.
-
-Both features share the same codebase, use **Google Wire** for compile-time dependency injection, and follow a **Hexagonal Architecture** with every port adapter living inside its own feature directory.
+A unified, platform-agnostic notification forwarding API built with **Go + Chi**.  
+Send one HTTP request — have it delivered to every enabled messaging platform simultaneously.  
+Collect and persist user feedback to PostgreSQL when you need a paper trail.
 
 ---
 
-## Project layout
+## Features
+
+| Feature | Endpoint | Storage |
+|---------|----------|---------|
+| Forward rich notifications | `POST /api/forward` | Telegram · Discord · Slack |
+| Submit a simple form | `POST /api/submit` | Telegram · Discord |
+| Collect feedback | `POST /api/feedback` | PostgreSQL |
+| Read feedback | `GET /api/feedback` | PostgreSQL |
+| Liveness probe | `GET /health` | — |
+
+- **Auto-enable** — a platform activates simply by setting its env vars; no code changes required.
+- **Partial-failure resilience** — if one platform fails the others still receive the message.
+- **Graceful shutdown** — SIGINT / SIGTERM handled cleanly.
+- **Optional database** — the feedback feature is skipped at startup when `DATABASE_URL` is unset.
+
+---
+
+## Project Structure
 
 ```
-features/
-  formresponse/          # Form-submission feature (→ Telegram / Discord)
-    domain.go            #   Notifier outgoing port + formatting helpers
-    telegram.go          #   Telegram outgoing adapter
-    discord.go           #   Discord outgoing adapter
-    handler.go           #   HTTP incoming adapter  (POST /api/submit)
-    providers.go         #   Wire provider set
-    *_test.go
-  feedback/              # Feedback feature (→ PostgreSQL)
-    domain.go            #   Feedback model, Repository & Service ports
-    service.go           #   Application service (implements Service)
-    repository.go        #   PostgreSQL outgoing adapter (implements Repository)
-    handler.go           #   HTTP incoming adapter  (POST/GET /api/feedback)
-    providers.go         #   Wire provider set + wire.Bind interface bindings
-    *_test.go
+cmd/
+  api/
+    main.go          entry point — HTTP server with graceful shutdown
+    container.go     composition root — wires all features (manual DI)
 internal/
-  config/                # Environment-variable configuration + Wire providers
-  db/                    # Shared pgxpool.Pool provider
-  app/                   # Chi router assembly + App struct
-wire.go                  # Wire injector  (build-tagged, not compiled normally)
-wire_gen.go              # Wire-generated wiring  (committed, do not edit by hand)
-main.go                  # Entry point — calls initializeApp() from wire_gen.go
+  feature/
+    forwarder/       POST /api/forward — rich message fan-out
+      domain.go        Message · Attachment · Result types; Notifier outgoing port
+      handler.go       HTTP incoming adapter
+      telegram.go      Telegram outgoing adapter
+      discord.go       Discord outgoing adapter
+      slack.go         Slack outgoing adapter
+    submitter/       POST /api/submit — simple form forwarding
+      domain.go        Notifier outgoing port + formatting helpers
+      handler.go       HTTP incoming adapter
+      telegram.go      Telegram outgoing adapter
+      discord.go       Discord outgoing adapter
+      notifiers.go     NewNotifiers constructor
+    feedback/        POST/GET /api/feedback — Postgres persistence
+      domain.go        Feedback model; Repository + Service ports
+      service.go       Application service
+      repository.go    PostgreSQL outgoing adapter
+      handler.go       HTTP incoming adapter
+shared/
+  config/            Flat env-var config loaded once at startup
+  db/                Shared pgxpool.Pool constructor
+  server/            Chi router factory + HealthCheck handler
 ```
+
+Each feature is a self-contained hexagonal slice: the **port** (interface) and its **adapters** (concrete implementations) live in the same feature directory.  
+The composition root (`cmd/api/container.go`) is the only place that knows about all features.
 
 ---
 
-## Quick start
-
-### 1. Clone & build
+## Quick Start
 
 ```bash
-git clone https://github.com/MrBns/form-response.git
-cd form-response
-go build -o form-response .
-```
+# 1. Clone
+git clone https://github.com/MrBns/forwarder
+cd forwarder
 
-### 2. Configure environment
-
-Copy `.env.example` to `.env` and fill in your values:
-
-```bash
+# 2. Configure
 cp .env.example .env
+# Edit .env and fill in the credentials for the platforms you want.
+
+# 3. Run
+go run ./cmd/api
 ```
-
-| Variable              | Required | Description                                                |
-| --------------------- | -------- | ---------------------------------------------------------- |
-| `PORT`                | No       | HTTP listen port (default `8080`)                          |
-| `ALLOWED_ORIGINS`     | No       | Comma-separated CORS origins (default `*`)                 |
-| `TELEGRAM_BOT_TOKEN`  | No       | Telegram Bot API token — omit to disable Telegram          |
-| `TELEGRAM_CHAT_ID`    | No       | Target Telegram chat / channel ID                          |
-| `DISCORD_WEBHOOK_URL` | No       | Discord incoming webhook URL — omit to disable Discord     |
-| `DATABASE_URL`        | **Yes**  | PostgreSQL DSN (`postgres://user:pass@host:5432/db`)       |
-
-### 3. Start Postgres (example with Docker)
-
-```bash
-docker run -d --name pg \
-  -e POSTGRES_USER=user -e POSTGRES_PASSWORD=pass -e POSTGRES_DB=formresponse \
-  -p 5432:5432 postgres:16
-```
-
-### 4. Run
-
-```bash
-source .env   # or export variables manually
-./form-response
-```
-
-The `feedbacks` table is created automatically on first startup.
 
 ---
 
-## API
+## Platform Configuration
 
-### Form submission — `POST /api/submit`
+| Platform | Env vars required |
+|----------|-------------------|
+| Discord  | `DISCORD_WEBHOOK_URL` |
+| Slack    | `SLACK_WEBHOOK_URL` |
+| Telegram | `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` |
+| PostgreSQL | `DATABASE_URL` (feedback feature only) |
 
-Accepts a form payload and forwards it to all configured notifiers.
-
-```http
-POST /api/submit
-Content-Type: application/json
-
-{ "fields": { "name": "Alice", "email": "alice@example.com", "message": "Hello!" } }
-```
-
-| Status | Meaning                             |
-| ------ | ----------------------------------- |
-| `200`  | Delivered to at least one notifier  |
-| `400`  | Invalid JSON or empty `fields`      |
-| `500`  | All notifiers failed                |
+Omit a variable entirely to disable that platform — no restarts or code changes needed.
 
 ---
 
-### Submit feedback — `POST /api/feedback`
+## API Reference
 
-Persists a feedback record to PostgreSQL and returns it.
-
-```http
-POST /api/feedback
-Content-Type: application/json
-
-{ "fields": { "rating": "5", "comment": "Love it!" } }
+### `GET /health`
+```json
+{"status": "ok"}
 ```
-
-| Status | Meaning               |
-| ------ | --------------------- |
-| `201`  | Feedback saved        |
-| `400`  | Invalid JSON / empty  |
-| `500`  | Database error        |
 
 ---
 
-### List feedbacks — `GET /api/feedback`
+### `POST /api/forward`
+Fans a rich message out to all enabled platforms (or a targeted subset).
 
-Returns paginated feedbacks, newest first.
-
-```http
-GET /api/feedback?limit=20&offset=0
-```
-
-Response:
-
+**Request**
 ```json
 {
-  "feedbacks": [
-    {
-      "id": "uuid",
-      "fields": { "rating": "5", "comment": "Love it!" },
-      "origin": "https://your-site.com",
-      "created_at": "2026-03-09T18:00:00Z"
-    }
+  "title":       "Deployment complete",
+  "description": "v2.4.1 deployed to production.",
+  "note":        "Rollback instructions in the runbook.",
+  "footer":      "Triggered by CI pipeline",
+  "fields":      { "env": "production", "commit": "a1b2c3d" },
+  "attachments": [{ "name": "Release notes", "url": "https://example.com/releases/v2.4.1", "type": "link" }],
+  "platforms":   ["discord", "slack"]
+}
+```
+Omit `platforms` to send to **all** enabled platforms.
+
+**Response `200 OK`**
+```json
+{
+  "results": [
+    { "platform": "discord", "success": true },
+    { "platform": "slack",   "success": false, "error": "slack: unexpected status 503" }
   ]
 }
 ```
+**Response `503`** — no platforms enabled or none matched `platforms`.
 
 ---
 
-### Health check — `GET /health`
+### `POST /api/submit`
+Forwards a simple key-value form to Telegram / Discord.
 
-Returns `{ "status": "ok" }` — for load-balancer / uptime probes.
+**Request**
+```json
+{ "fields": { "name": "Alice", "email": "alice@example.com", "message": "Hello!" } }
+```
+
+**Response `200 OK`** — `{ "success": true, "message": "form submitted successfully" }`  
+**Response `400`** — invalid JSON or empty `fields`.  
+**Response `500`** — all notifiers failed.
 
 ---
 
-## Calling from a website
+### `POST /api/feedback`
+Persists a feedback record to PostgreSQL (requires `DATABASE_URL`).
 
-```js
-// Form submission (→ Telegram / Discord)
-fetch("https://your-api/api/submit", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ fields: { name: "Alice", message: "Hi" } }),
-});
+**Request** — same shape as `/api/submit`
 
-// Feedback (→ PostgreSQL)
-fetch("https://your-api/api/feedback", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ fields: { rating: "5", comment: "Great!" } }),
-});
+**Response `201 Created`** — the persisted `Feedback` object.
+
+---
+
+### `GET /api/feedback`
+Returns paginated feedback records, newest first.
+
+```
+GET /api/feedback?limit=20&offset=0
+```
+
+**Response `200 OK`**
+```json
+{
+  "feedbacks": [
+    { "id": "uuid", "fields": { "rating": "5" }, "origin": "https://your-site.com", "created_at": "2026-03-10T01:00:00Z" }
+  ]
+}
 ```
 
 ---
@@ -181,29 +176,23 @@ fetch("https://your-api/api/feedback", {
 # Run tests
 go test ./...
 
-# Regenerate Wire wiring after changing providers
-go run github.com/google/wire/cmd/wire ./...
+# Build binary
+go build -o forwarder ./cmd/api
 
-# Run locally
-source .env && go run .
+# Run with live reload (requires air)
+air -c .air.toml
 ```
 
 ---
 
-## Architecture
+## Environment Variables
 
-The project follows **Hexagonal Architecture** (Ports & Adapters):
-
-- **Incoming adapters** (`handler.go` in each feature) translate HTTP requests into calls on the application's incoming port.
-- **Outgoing adapters** (`telegram.go`, `discord.go`, `repository.go`) implement the outgoing ports defined in `domain.go`.
-- **Google Wire** resolves the full dependency graph at compile time — `wire_gen.go` is generated and committed so the binary can be built without the `wire` tool installed.
-
----
-
-## Stack
-
-- [Go](https://go.dev/) 1.21+
-- [Chi](https://github.com/go-chi/chi) router
-- [go-chi/cors](https://github.com/go-chi/cors) middleware
-- [Google Wire](https://github.com/google/wire) compile-time DI
-- [pgx v5](https://github.com/jackc/pgx) PostgreSQL driver
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `8080` | HTTP listen port |
+| `ALLOWED_ORIGINS` | `*` | Comma-separated CORS origins |
+| `DISCORD_WEBHOOK_URL` | — | Discord incoming webhook |
+| `SLACK_WEBHOOK_URL` | — | Slack incoming webhook |
+| `TELEGRAM_BOT_TOKEN` | — | Telegram Bot API token |
+| `TELEGRAM_CHAT_ID` | — | Telegram target chat/channel ID |
+| `DATABASE_URL` | — | PostgreSQL DSN (disables feedback feature when absent) |
