@@ -8,9 +8,17 @@ forwarder
 # Editor
 .idea/
 
+
+# directory
+tmp/
+
 *.swp
 *.swo
+
 
 # OS
 .DS_Store
 Thumbs.db
+
+*.bin
+./forwarder.*
