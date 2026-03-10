@@ -1,4 +1,4 @@
-// Package app wires together the HTTP router and all middleware to produce the
+// Package app assembles the HTTP router and all middleware to produce the
 // top-level application that main.go starts.
 package app
 
@@ -10,15 +10,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	"github.com/google/wire"
 
-	"github.com/MrBns/form-response/features/feedback"
-	"github.com/MrBns/form-response/features/formresponse"
-	"github.com/MrBns/form-response/internal/config"
+	"github.com/MrBns/forwarder/features/feedback"
+	"github.com/MrBns/forwarder/features/formresponse"
+	"github.com/MrBns/forwarder/internal/config"
 )
-
-// ProviderSet is the Wire provider set for the app package.
-var ProviderSet = wire.NewSet(New)
 
 // App is the fully initialised application ready to serve HTTP traffic.
 type App struct {

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/MrBns/form-response/features/feedback"
+	"github.com/MrBns/forwarder/features/feedback"
 )
 
 // stubService is a test double for feedback.Service.

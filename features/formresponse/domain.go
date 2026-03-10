@@ -5,7 +5,7 @@
 //   - handler.go     — incoming adapter (HTTP → domain)
 //   - telegram.go    — outgoing adapter (domain → Telegram Bot API)
 //   - discord.go     — outgoing adapter (domain → Discord webhook)
-//   - providers.go   — Wire provider set
+//   - providers.go   — constructor helpers for the Notifiers slice
 package formresponse
 
 import (

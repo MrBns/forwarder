@@ -3,17 +3,6 @@ package config
 import (
 	"os"
 	"strings"
-
-	"github.com/google/wire"
-)
-
-// ProviderSet is the Wire provider set for the config package.
-var ProviderSet = wire.NewSet(
-	Load,
-	ProvideTelegramConfig,
-	ProvideDiscordConfig,
-	ProvideServerConfig,
-	ProvideDBConfig,
 )
 
 // Config holds all application configuration loaded from environment variables.

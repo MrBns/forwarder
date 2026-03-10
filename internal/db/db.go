@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/MrBns/form-response/internal/config"
+	"github.com/MrBns/forwarder/internal/config"
 )
 
 // NewPool opens a pgxpool connection pool using the supplied DBConfig.

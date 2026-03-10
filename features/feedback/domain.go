@@ -5,7 +5,6 @@
 //   - service.go     — application service (implements Service)
 //   - repository.go  — PostgreSQL outgoing adapter (implements Repository)
 //   - handler.go     — HTTP incoming adapter
-//   - providers.go   — Wire provider set
 package feedback
 
 import (

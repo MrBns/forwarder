@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/MrBns/form-response/features/formresponse"
+	"github.com/MrBns/forwarder/features/formresponse"
 )
 
 // --- TelegramNotifier tests -------------------------------------------------

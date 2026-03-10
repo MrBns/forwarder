@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/MrBns/form-response/features/feedback"
+	"github.com/MrBns/forwarder/features/feedback"
 )
 
 // mockRepository is a test double for feedback.Repository.

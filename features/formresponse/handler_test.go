@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/MrBns/form-response/features/formresponse"
+	"github.com/MrBns/forwarder/features/formresponse"
 )
 
 // stubNotifier is a test double for formresponse.Notifier.

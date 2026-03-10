@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/MrBns/form-response/internal/config"
+	"github.com/MrBns/forwarder/internal/config"
 )
 
 func TestLoad_Defaults(t *testing.T) {

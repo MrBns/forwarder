@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	"github.com/MrBns/form-response/internal/app"
+	"github.com/MrBns/forwarder/internal/app"
 )
 
 // main is intentionally minimal: dependency wiring is handled by the
